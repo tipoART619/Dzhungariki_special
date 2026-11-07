@@ -25,6 +25,7 @@ from doe.losses import doe_loss
 from doe.model import DOENet
 from doe.optics_torch import FresnelPropagator
 from doe.torch_data import FolderSets, RandomSets
+from doe import registry
 
 
 def build_model(cfg, device):
@@ -59,8 +60,13 @@ def main():
     ap.add_argument("--w-mse", type=float, default=1.0)
     ap.add_argument("--w-ssim", type=float, default=2.0)
     ap.add_argument("--extra-dir", default=None, help="свои изображения для подмешивания в обучение")
+    ap.add_argument("--extra-prob", type=float, default=0.5, help="доля изображений из --extra-dir")
     ap.add_argument("--val-dir", default=str(ROOT / "data" / "val"))
     ap.add_argument("--val-every", type=int, default=500)
+    ap.add_argument("--ckpt-every", type=int, default=5,
+                    help="каждые N валидаций: чекпойнт + метрики на тестовом наборе (0 = выкл.)")
+    ap.add_argument("--test-dir", default=str(ROOT / "data" / "test"))
+    ap.add_argument("--test-limit", type=int, default=None, help="сколько тестовых наборов использовать")
     ap.add_argument("--workers", type=int, default=4)
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--resume", default=None, help="продолжить прерванное обучение из last.pt (веса + оптимизатор + шаг)")
@@ -94,7 +100,7 @@ def main():
             sched.step()
     print(f"device={device}, params={sum(p.numel() for p in model.parameters()) / 1e6:.2f}M")
 
-    train_loader = DataLoader(RandomSets(a.extra_dir, seed=a.seed), batch_size=a.batch,
+    train_loader = DataLoader(RandomSets(a.extra_dir, extra_prob=a.extra_prob, seed=a.seed), batch_size=a.batch,
                               num_workers=a.workers, pin_memory=device == "cuda",
                               persistent_workers=a.workers > 0)
     val_loader = None
@@ -102,6 +108,24 @@ def main():
         val_loader = DataLoader(FolderSets(a.val_dir), batch_size=a.batch)
     else:
         print(f"[!] нет {a.val_dir}: создайте его через scripts/make_dataset.py, валидация отключена")
+
+    # --- контроль деградации: фиксированный тестовый набор и эталон (опубликованная модель) ---
+    test_sets = None
+    if a.ckpt_every > 0 and Path(a.test_dir).exists():
+        test_sets = registry.load_sets(a.test_dir, a.test_limit)
+        (out / "checkpoints").mkdir(exist_ok=True)
+    ref = registry.get(registry.load())
+    ref_pcc = ref["metrics"]["PCC"] if ref else None
+    if ref:
+        print(f"эталон: {ref['version']} PCC={ref_pcc:.4f} (порог деградации {registry.DEGRADATION_TOL})")
+    hist_path = out / "metrics_history.csv"
+    new_hist = not hist_path.exists()
+    hist = open(hist_path, "a", newline="", encoding="utf-8")
+    hw = csv.writer(hist)
+    if new_hist:
+        hw.writerow(["step", "val_pcc", "val_ssim", "test_pcc", "test_ssim", "best_test_pcc", "ref_pcc", "status", "ckpt"])
+    n_val = 0
+    best_test = -1e9
 
     log = open(out / "log.csv", "a", newline="", encoding="utf-8")
     wr = csv.writer(log)
@@ -134,8 +158,30 @@ def main():
                 if score > best:
                     best = score
                     torch.save(ck, out / "best.pt")
+                n_val += 1
+                if test_sets is not None and (n_val % a.ckpt_every == 0 or step == a.steps):
+                    tm = registry.benchmark_model(model, test_sets, device)
+                    cp = out / "checkpoints" / f"ckpt_step{step:06d}.pt"
+                    torch.save({"model": model.state_dict(), "cfg": cfg, "step": step, "test": tm}, cp)
+                    status = "ok"
+                    if tm["PCC"] < best_test - registry.DEGRADATION_TOL:
+                        status = "degraded_vs_best"
+                    if ref_pcc is not None and tm["PCC"] < ref_pcc - registry.DEGRADATION_TOL:
+                        status = "degraded_vs_release"
+                    best_test = max(best_test, tm["PCC"])
+                    hw.writerow([step, v["pcc"], v.get("ssim", ""), tm["PCC"], tm["SSIM"], best_test,
+                                 ref_pcc if ref_pcc is not None else "", status, cp.name])
+                    hist.flush()
+                    mark = "" if status == "ok" else "   <-- ДЕГРАДАЦИЯ"
+                    print(f"   TEST pcc={tm['PCC']:.4f} ssim={tm['SSIM']:.4f} [{status}] -> {cp.name}{mark}")
             log.flush()
     log.close()
+    hist.close()
+    try:
+        from scripts.plot_history import plot
+        plot(hist_path)
+    except Exception as e:  # график не критичен
+        print("график не построен:", e)
     if not (out / "best.pt").exists():
         torch.save(ck, out / "best.pt")
     print("готово:", out / "best.pt")

@@ -1,0 +1,24 @@
+{
+  "base": 32,
+  "depth": 4,
+  "distances": [
+    0.0241,
+    0.0253,
+    0.0265,
+    0.0277
+  ],
+  "w_pcc": 1.0,
+  "w_mse": 1.0,
+  "w_ssim": 2.0,
+  "out": "runs/full",
+  "steps": 20000,
+  "batch": 16,
+  "lr": 0.001,
+  "extra_dir": null,
+  "val_dir": "/Users/artur/Downloads/doe_nn/data/val",
+  "val_every": 500,
+  "workers": 4,
+  "seed": 0,
+  "resume": null,
+  "init": null
+}

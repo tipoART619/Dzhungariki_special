@@ -1,55 +1,260 @@
-# Нейросетевой синтез многоплоскостных фазовых ДОЭ
+# Dzhungariki_special — нейросетевой синтез многоплоскостных фазовых ДОЭ
 
-Фазовый ДОЭ 128×128 (фаза от −π до π) рассчитывается так, чтобы при восстановлении
-дифракцией Френеля (одно преобразование Фурье) на расстояниях 24,1 / 25,3 / 26,5 / 27,7 мм
-фокусировались 4 заданных изображения. λ = 532 нм, пиксел ПВМС 10 мкм.
+Программа рассчитывает фазовый дифракционный оптический элемент (ДОЭ) 128×128 так, чтобы при
+восстановлении на расстояниях **24,1 / 25,3 / 26,5 / 27,7 мм** получались 4 заданных вами изображения
+(λ = 532 нм, пиксел 10 мкм). Обученная нейросеть уже в комплекте — **обучать ничего не нужно**.
 
-## Быстрый старт (Windows / Linux / macOS)
+**Содержание**
 
-Нужен Python 3.10–3.12.
+1. [Быстрый старт через Docker (рекомендуется)](#1-быстрый-старт-через-docker-рекомендуется)
+2. [Подготовка своих изображений](#2-подготовка-своих-изображений)
+3. [Что получается на выходе](#3-что-получается-на-выходе)
+4. [Установка без Docker](#4-установка-без-docker)
+5. [Частые проблемы](#5-частые-проблемы)
+6. [Для разработчиков: обучение и дообучение](#6-для-разработчиков-обучение-и-дообучение)
+7. [Как это устроено](#7-как-это-устроено)
 
-```bash
+---
+
+## 1. Быстрый старт через Docker (рекомендуется)
+
+Docker — программа, которая запускает проект в готовом «контейнере» со всеми зависимостями.
+Python и библиотеки ставить не нужно, работает одинаково на Windows, macOS и Linux.
+
+### Шаг 1. Установите Docker
+
+| Система | Что сделать |
+|---|---|
+| **Windows 10/11** | Скачайте и установите [Docker Desktop](https://docs.docker.com/desktop/setup/install/windows-install/). При установке оставьте галочку «Use WSL 2». Перезагрузите компьютер. |
+| **macOS** (Intel и Apple M1–M4) | Скачайте [Docker Desktop](https://docs.docker.com/desktop/setup/install/mac-install/) для своего процессора ( → «Об этом Mac»: Apple → *Apple Silicon*, Intel → *Intel chip*), перетащите в «Программы». |
+| **Linux** (Ubuntu/Debian) | `curl -fsSL https://get.docker.com \| sudo sh`, затем `sudo usermod -aG docker $USER` и перезайдите в систему. |
+
+**Запустите Docker Desktop** (на Windows/macOS) и дождитесь, пока значок кита перестанет «мигать».
+Проверка — в терминале должна напечататься версия:
+
+```
+docker --version
+```
+
+> Где открыть терминал: **Windows** — Пуск → «PowerShell»; **macOS** — Программы → Утилиты → «Терминал»;
+> **Linux** — Ctrl+Alt+T.
+
+### Шаг 2. Скачайте проект
+
+**Вариант А — без git:** на странице <https://github.com/tipoART619/Dzhungariki_special> нажмите зелёную кнопку
+**Code → Download ZIP**, распакуйте архив (например, на рабочий стол).
+
+**Вариант Б — через git:**
+
+```
 git clone https://github.com/tipoART619/Dzhungariki_special.git
-cd Dzhungariki_special
-python -m venv .venv
-# Linux/macOS:
-source .venv/bin/activate
-# Windows (PowerShell):
-.venv\Scripts\Activate.ps1
+```
 
+### Шаг 3. Перейдите в папку проекта
+
+```
+cd путь/к/Dzhungariki_special
+```
+
+Подсказка: напишите `cd ` (с пробелом) и перетащите папку проекта мышкой в окно терминала — путь вставится сам.
+
+### Шаг 4. Проверьте на встроенном примере
+
+| Windows (PowerShell) | macOS / Linux |
+|---|---|
+| `.\run.bat demo` | `bash run.sh demo` |
+
+Первый запуск собирает контейнер: скачивается ~1 ГБ, занимает **5–15 минут** (зависит от интернета).
+Следующие запуски — несколько секунд. Если в конце написано «Готово», а в папке `output/demo` появились
+картинки — всё работает.
+
+### Шаг 5. Запустите на своих изображениях
+
+1. Положите **ровно 4 изображения** в папку `input` внутри проекта (требования — в разделе 2).
+2. Запустите:
+
+| Что сделать | Windows | macOS / Linux |
+|---|---|---|
+| ДОЭ нейросетью (быстро, доли секунды) | `.\run.bat` | `bash run.sh` |
+| нейросеть + донастройка (точнее, ~2–5 с) | `.\run.bat synth --refine 100` | `bash run.sh synth --refine 100` |
+| классический метод Гершберга–Сакстона | `.\run.bat classic gs` | `bash run.sh classic gs` |
+| градиентная оптимизация (Adam) | `.\run.bat classic adam` | `bash run.sh classic adam` |
+| проверка установки (тесты) | `.\run.bat test` | `bash run.sh test` |
+| пересобрать контейнер после обновления проекта | `.\run.bat build` | `bash run.sh build` |
+
+3. Результаты — в папке `output` (`output/nn`, `output/gs`, `output/adam`). Описание файлов — в разделе 3.
+
+**Лучшее качество** даёт `synth --refine 100` (сеть + 100 шагов донастройки).
+
+---
+
+## 2. Подготовка своих изображений
+
+* **Ровно 4 файла** в папке `input`. Форматы: PNG, JPG, BMP, TIFF.
+* **Порядок плоскостей = порядок имён файлов по алфавиту.** Назовите их `1.png`, `2.png`, `3.png`, `4.png`:
+
+| файл | расстояние |
+|---|---|
+| `1.png` | 24,1 мм |
+| `2.png` | 25,3 мм |
+| `3.png` | 26,5 мм |
+| `4.png` | 27,7 мм |
+
+* Любой размер — картинка автоматически приводится к **128×128** и в оттенки серого.
+  Неквадратное изображение растянется, поэтому лучше заранее обрезать до квадрата.
+* Лучше всего работают **светлые объекты на тёмном фоне** (буквы, цифры, фигуры, контуры):
+  белое — там, где должен быть свет.
+* Перед новым запуском уберите из `input` старые картинки, а из `output` — старые результаты, если они не нужны
+  (новые результаты перезаписывают старые с теми же именами).
+
+---
+
+## 3. Что получается на выходе
+
+| файл | содержимое |
+|---|---|
+| `doe.png` | **рассчитанный ДОЭ**: 8 бит, 1 канал, фаза −π → 0, +π → 255 |
+| `recon_k_zXX.Xmm.png` | 4 восстановленных изображения (что будет видно на каждом расстоянии) |
+| `input_k.png` | ваши изображения после приведения к 128×128 |
+| `metrics.json`, `metrics.csv` | точность: PCC и SSIM для каждой плоскости и средние, время расчёта |
+| `preview.png` | сводная картинка: ДОЭ, исходные и восстановленные изображения |
+
+Восстановление считается **из сохранённого 8-битного `doe.png`**, то есть так же, как его будет
+проверять жюри; потеря точности из-за 8 бит учтена в метриках.
+**PCC** (коэффициент корреляции, 1 = идеально) — основная метрика качества.
+
+---
+
+## 4. Установка без Docker
+
+Если Docker поставить нельзя. Нужен **Python 3.10–3.12** (3.13 пока не поддерживается PyTorch на всех системах).
+
+**Установка Python:** Windows — [python.org/downloads](https://www.python.org/downloads/) (при установке
+отметьте **«Add python.exe to PATH»**); macOS — `brew install python@3.12` или установщик с python.org;
+Linux — `sudo apt install python3 python3-venv python3-pip`.
+
+Скачайте проект (шаг 2 выше), перейдите в его папку и выполните:
+
+**Windows (PowerShell):**
+
+```
+py -3.12 -m venv .venv
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+.\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
-# для NVIDIA GPU поставьте torch с CUDA по инструкции https://pytorch.org/get-started/locally/
+python scripts/download_weights.py
 python -m pytest tests
 ```
 
-### Вариант 1. Готовые результаты, без обучения
+**macOS / Linux:**
 
-Результаты эталонного прогона уже лежат в `results/` (см. таблицу ниже), лог обучения — в `runs/main/log.csv`.
-Чтобы воспроизвести их у себя с готовыми весами (скачиваются из GitHub Release в `weights/doe_nn.pt`):
-
-```bash
-python run_all.py --pretrained
 ```
-
-### Вариант 2. Полный цикл с обучением
-
-```bash
-python run_all.py                    # 20 000 шагов (GPU рекомендуется)
-python run_all.py --steps 2000       # быстрая проверка
-```
-
-(`bash run_all.sh` — то же самое для Linux/macOS.)
-
-### Дообучение готовой модели
-
-```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
 python scripts/download_weights.py
-python scripts/train.py --init weights/doe_nn.pt --steps 20000 --out runs/finetune
-# свои изображения: добавьте --extra-dir путь/к/картинкам
+python -m pytest tests
 ```
 
-Продолжить прерванное обучение (из полного чекпойнта с оптимизатором): `--resume runs/main/last.pt`.
-На Windows при ошибках DataLoader добавьте `--workers 0`.
+Если тесты прошли (`passed`), установка готова. При каждом новом открытии терминала сначала активируйте
+окружение (`.\.venv\Scripts\Activate.ps1` или `source .venv/bin/activate`).
+
+**Запуск на своих изображениях** (4 файла в папке `input`):
+
+```
+python scripts/synthesize.py --input-dir input --ckpt weights/doe_nn.pt --out output/nn
+python scripts/synthesize.py --input-dir input --ckpt weights/doe_nn.pt --out output/nn_refine --refine 100
+python scripts/synthesize_classic.py --method gs --input-dir input --out output/gs
+```
+
+Можно указать файлы явно: `--inputs a.png b.png c.png d.png` вместо `--input-dir`.
+
+---
+
+## 5. Частые проблемы
+
+| Проблема | Решение |
+|---|---|
+| `docker: command not found` / «docker не является командой» | Docker не установлен или терминал открыт до установки — переоткройте терминал. |
+| `Cannot connect to the Docker daemon` / `error during connect` | Не запущен Docker Desktop — запустите его и подождите минуту. |
+| `permission denied ... docker.sock` (Linux) | `sudo usermod -aG docker $USER`, затем выйти и снова войти в систему (или запускать через `sudo`). |
+| «В папке input должно быть ровно 4 изображения» | В `input` не 4 картинки. Скрытые и не-картинки не считаются. |
+| Сборка падает на `download_weights` / ошибка 404 | Модель не скачалась. Скачайте `doe_nn.pt` из последнего релиза на странице [Releases](https://github.com/tipoART619/Dzhungariki_special/releases), положите в папку `weights/` и повторите `build`. |
+| Ошибка сети / таймаут при первой сборке | Нестабильный интернет или блокировка Docker Hub — повторите команду, при необходимости через другую сеть/VPN. |
+| `/bin/sh^M: bad interpreter` | Файлы повреждены сменой переводов строк (Windows). Скачайте проект заново через ZIP или `git clone`. |
+| `running scripts is disabled` (PowerShell) | Выполните `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass` и повторите. |
+| Windows: Docker Desktop просит WSL | В PowerShell от администратора: `wsl --install`, перезагрузка. |
+| `No matching distribution found for torch` | Неподходящая версия Python — нужна 3.10–3.12. |
+
+---
+
+## 6. Для разработчиков: обучение и дообучение
+
+Все команды — в активированном окружении (раздел 4).
+
+```
+python run_all.py --pretrained      # готовые веса: данные -> синтез -> сравнение NN / GS / Adam
+python run_all.py                   # полный цикл с обучением с нуля (20 000 шагов, лучше GPU)
+python run_all.py --steps 2000      # короткая проверка
+```
+
+Дообучение готовой модели (например, на своих изображениях):
+
+```
+python scripts/train.py --init weights/doe_nn.pt --steps 20000 --out runs/finetune --extra-dir путь/к/картинкам
+```
+
+* Продолжить прерванное обучение: `--resume runs/<имя>/last.pt`.
+* Windows: при ошибках загрузчика данных добавьте `--workers 0`.
+* NVIDIA GPU: поставьте torch с CUDA по [инструкции PyTorch](https://pytorch.org/get-started/locally/).
+* Apple Silicon используется автоматически (MPS). Если FFT на MPS выдаёт ошибку — обновите PyTorch.
+* Баланс PCC/SSIM — флаг `--w-ssim` (больше → выше SSIM).
+* Сравнение методов на тестовом наборе: `python scripts/evaluate.py --test-dir data/test --ckpt weights/doe_nn.pt --out results/benchmark`.
+
+### Версии модели («знания» нейросети)
+
+Всё, что сеть умеет, хранится в её весах. Каждая версия — **GitHub Release** (`model-v1`, `model-v2`, …)
+с файлом `doe_nn.pt`, а в git лежит реестр **`weights/registry.json`** (ссылка, sha256, метрики, от какой версии
+дообучена, на каких данных) и **`CHANGELOG.md`**.
+
+```
+python scripts/download_weights.py --list               # все версии с метриками (* — текущая)
+python scripts/download_weights.py                      # последняя версия -> weights/doe_nn.pt
+python scripts/download_weights.py --version model-v1   # откат на старую версию
+```
+
+**Опубликовать модель после обучения** (нужен [GitHub CLI](https://cli.github.com) и `gh auth login`):
+
+```
+python scripts/release_model.py --ckpt runs/full/best.pt --notes "полное обучение 20k шагов" --publish
+git add weights/registry.json CHANGELOG.md && git commit -m "model-vN" && git push
+```
+
+Скрипт сам считает метрики на `data/test` и **откажется публиковать**, если PCC упал больше чем на 0,01
+по сравнению с текущей версией (обойти — `--force`).
+
+### Обновление модели на новых данных
+
+```
+python scripts/update_model.py --data data/extra/мои_картинки --steps 5000 --notes "добавлены рукописные буквы" --publish
+```
+
+Дообучает текущую версию, смешивая новые картинки с прежними данными (`--mix 0.5`, чтобы сеть не «забыла» старое),
+проверяет на старом тесте (и на новом, если указать `--new-test папка_с_наборами`) и при отсутствии деградации
+выпускает следующую версию. Новые данные лучше класть в `data/extra/<название>` и коммитить, чтобы версию можно было
+воспроизвести.
+
+### Чекпойнты и контроль деградации при обучении
+
+Каждые 5 валидаций (по умолчанию раз в 2500 шагов; `--ckpt-every N`) `train.py`:
+
+* сохраняет чекпойнт `runs/<имя>/checkpoints/ckpt_stepNNNNNN.pt`;
+* считает PCC/SSIM на `data/test` так же, как жюри (через 8-битный ДОЭ);
+* пишет строку в `runs/<имя>/metrics_history.csv` со статусом `ok` / `degraded_vs_best` (хуже лучшего чекпойнта
+  этого обучения) / `degraded_vs_release` (хуже опубликованной версии) и печатает `<-- ДЕГРАДАЦИЯ`;
+* в конце строит график `metrics_history.png` (вручную: `python scripts/plot_history.py runs/<имя>/metrics_history.csv`).
+
+Откатиться на любой чекпойнт: `python scripts/release_model.py --ckpt runs/<имя>/checkpoints/ckpt_step005000.pt ...`.
 
 ### Эталонный прогон (Apple M-series, MPS, 2000 шагов)
 
@@ -62,34 +267,30 @@ python scripts/train.py --init weights/doe_nn.pt --steps 20000 --out runs/finetu
 | Adam, 300 итер. | 0,568 ± 0,044 | 0,183 ± 0,051 | 1,62 с |
 
 Демо-изображения (`examples/input`): NN — PCC 0,584; NN + refine 100 — 0,752; GS — 0,751; Adam — 0,760.
-Модель обучена коротко (2000 шагов); полное обучение и дообучение — см. выше.
 
-### Публикация весов (для мейнтейнеров)
+### Структура проекта
 
-```bash
-python scripts/export_weights.py --ckpt runs/main/best.pt --out weights/doe_nn.pt
 ```
-Загрузите `weights/doe_nn.pt` в GitHub Release `v1.0` и пропишите ссылку и sha256 в `scripts/download_weights.py`.
-
-Синтез для своих 4 изображений (порядок = порядок расстояний):
-
-```bash
-python scripts/synthesize.py --inputs 1.png 2.png 3.png 4.png --ckpt runs/main/best.pt --out results/my
+run.sh, run.bat     запуск через Docker одной командой
+Dockerfile, docker/ сборка контейнера
+input/, output/     ваши изображения и результаты
+weights/            обученная модель (doe_nn.pt) и реестр версий registry.json
+doe/                физика, модель, метрики, классические методы
+scripts/            synthesize, synthesize_classic, train, evaluate, make_dataset,
+                    release_model, update_model, download_weights, plot_history
+CHANGELOG.md        история версий модели
+tests/              проверки физики и градиентов
+examples/input      4 демо-изображения
+data/val, data/test фиксированные наборы для валидации и теста
+results/            результаты эталонного прогона
+run_all.py          полный цикл (run_all.sh — то же для bash)
 ```
 
-В папке результата:
+---
 
-| файл | содержимое |
-|---|---|
-| `doe.png` | ДОЭ, 8 бит, 1 канал: −π → 0, +π → 255 |
-| `recon_k_zXX.Xmm.png` | 4 восстановленных изображения (модуль поля), 8 бит, 1 канал |
-| `metrics.json`, `metrics.csv` | PCC и SSIM для каждой плоскости и средние, время синтеза |
-| `preview.png` | сводная картинка |
+## 7. Как это устроено
 
-Восстановление выполняется **из сохранённого 8-битного `doe.png`**, т. е. так же, как будет
-проверять жюри; квантование фазы учитывается в метриках.
-
-## Физическая модель (`doe/optics_np.py`, `doe/optics_torch.py`)
+### Физическая модель (`doe/optics_np.py`, `doe/optics_torch.py`)
 
 U_z(x,y) = e^{ikz}/(iλz) · e^{iπ(x²+y²)/(λz)} · FFT{ e^{iφ(ξ,η)} · e^{iπ(ξ²+η²)/(λz)} }
 
@@ -109,7 +310,7 @@ U_z(x,y) = e^{ikz}/(iλz) · e^{iπ(x²+y²)/(λz)} · FFT{ e^{iφ(ξ,η)} · e^
   плоскости SSIM ≈ 0,23). Поэтому SSIM включён прямо в функцию потерь, в той же форме, в которой
   он считается при оценке (scikit-image, окно 7×7, нормировка амплитуды по 99,5-перцентилю).
 
-## Нейросеть (`doe/model.py`)
+### Нейросеть (`doe/model.py`)
 
 Физически-информированная U-Net, обучение **без учителя** (готовые ДОЭ не нужны):
 
@@ -133,7 +334,7 @@ U_z(x,y) = e^{ikz}/(iλz) · e^{iπ(x²+y²)/(λz)} · FFT{ e^{iφ(ξ,η)} · e^
 Свои изображения (например, MNIST/EMNIST или тестовые изображения организаторов) подмешиваются
 флагом `--extra-dir`. Валидационный/тестовый наборы фиксируются `scripts/make_dataset.py`.
 
-## Классические методы для сравнения (`doe/baselines.py`)
+### Классические методы для сравнения (`doe/baselines.py`)
 
 * многоплоскостной **Гершберг–Сакстон**;
 * **градиентная оптимизация фазы** (Adam) по той же функции потерь, с аналитическим градиентом
@@ -141,7 +342,7 @@ U_z(x,y) = e^{ikz}/(iλz) · e^{iπ(x²+y²)/(λz)} · FFT{ e^{iφ(ξ,η)} · e^
 
 Сравнение NN vs GS vs Adam по качеству и времени: `scripts/evaluate.py`.
 
-## Результаты классических методов (уже посчитаны, CPU)
+### Результаты классических методов (уже посчитаны, CPU)
 
 Демо-изображения (`examples/input`: «Ф», «7», кольцо с квадратом, звезда):
 
@@ -158,24 +359,3 @@ U_z(x,y) = e^{ikz}/(iλz) · e^{iπ(x²+y²)/(λz)} · FFT{ e^{iφ(ξ,η)} · e^
 | Adam + SSIM | 0,563 ± 0,040 | 0,185 ± 0,053 | 4,0 с |
 
 Строки для нейросети добавляются после обучения (`run_all.sh` → `results/nn`, `results/benchmark`).
-
-## Структура
-
-```
-doe/            config, optics_np, optics_torch, metrics, ssim_np, io, dataset, torch_data, model, losses, baselines
-scripts/        make_examples, make_dataset, train, synthesize, synthesize_classic, evaluate
-tests/          test_numpy.py, test_torch.py
-examples/input  4 демо-изображения
-data/val, data/test   фиксированные наборы (seed 1 и 2)
-results/        gs, adam, benchmark_classic (+ nn, nn_refine, benchmark после обучения)
-run_all.py      полный цикл (кроссплатформенный), run_all.sh — то же для bash
-weights/        готовые веса (скачиваются из Release)
-```
-
-## Рекомендации по обучению
-
-* GPU, `--batch 16`, 20–30 тыс. шагов (`--base 32 --depth 4`, ~6 млн параметров). Скорость на
-  CPU для проверки: `--base 16 --batch 4 --steps 200 --workers 0`.
-* Если известны тестовые изображения организаторов, их тип стоит подмешать через `--extra-dir`.
-* Баланс PCC/SSIM регулируется `--w-ssim` (больше — выше SSIM, немного ниже PCC).
-* Apple Silicon (MPS): комплексные FFT поддерживаются не во всех версиях PyTorch; при ошибке используйте CPU/CUDA.

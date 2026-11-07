@@ -10,5 +10,15 @@ Thumbs.db
 .vscode/
 
 # чекпойнты обучения (большие); готовые веса — в GitHub Release, см. README
-runs/*/*.pt
+runs/**/*.pt
 weights/*.pt
+weights/_upload/
+
+# папки для Docker-запуска
+input/*
+!input/.gitkeep
+output/*
+!output/.gitkeep
+
+*.log
+_to_delete/
