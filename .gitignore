@@ -11,7 +11,6 @@ Thumbs.db
 
 # чекпойнты обучения (большие); готовые веса — в GitHub Release, см. README
 runs/**/*.pt
-weights/*.pt
 weights/_upload/
 
 # папки для Docker-запуска
