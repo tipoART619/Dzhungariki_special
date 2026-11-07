@@ -1,5 +1,34 @@
 {
   "repo": "tipoART619/Dzhungariki_special",
-  "latest": null,
-  "versions": []
+  "latest": "model-v1",
+  "versions": [
+    {
+      "version": "model-v1",
+      "date": "2026-11-07",
+      "parent": null,
+      "url": "https://github.com/tipoART619/Dzhungariki_special/releases/download/model-v1/doe_nn.pt",
+      "sha256": "2cacf16ec3778767004bd7b1e57182388db96f29e1af9fa80c4b0180752527c2",
+      "size_mb": 24.5,
+      "steps": 19000,
+      "cfg": {
+        "base": 32,
+        "depth": 4,
+        "distances": [
+          0.0241,
+          0.0253,
+          0.0265,
+          0.0277
+        ]
+      },
+      "data": "",
+      "metrics": {
+        "PCC": 0.49059193450903754,
+        "SSIM": 0.08494856249391132,
+        "sets": 100,
+        "test_dir": "test"
+      },
+      "extra_metrics": null,
+      "notes": "first version"
+    }
+  ]
 }
