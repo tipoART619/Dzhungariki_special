@@ -1,0 +1,14 @@
+# окружение и кэши
+.venv/
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# чекпойнты обучения (большие); готовые веса — в GitHub Release, см. README
+runs/*/*.pt
+weights/*.pt
