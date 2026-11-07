@@ -13,4 +13,5 @@ if /I "%1"=="build" exit /b 0
 :run
 if not exist input mkdir input
 if not exist output mkdir output
-docker run --rm -v "%cd%\input:/data/input:ro" -v "%cd%\output:/data/output" %IMAGE% %*
+if not exist weights mkdir weights
+docker run --rm -v "%cd%\input:/data/input:ro" -v "%cd%\output:/data/output" -v "%cd%\weights:/data/weights" %IMAGE% %*

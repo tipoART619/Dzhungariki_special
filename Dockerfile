@@ -10,8 +10,9 @@ COPY requirements.txt .
 RUN pip install -r requirements.txt
 
 COPY . .
-# веса: берутся из weights/doe_nn.pt, если он есть рядом с Dockerfile, иначе скачиваются из GitHub Release
-RUN python scripts/download_weights.py && sed -i 's/\r$//' docker/entrypoint.sh && chmod +x docker/entrypoint.sh
+# модель НЕ скачивается при сборке: при запуске берётся из папки weights на компьютере
+# (монтируется в /data/weights), иначе из образа, иначе скачивается из GitHub Release
+RUN sed -i 's/\r$//' docker/entrypoint.sh && chmod +x docker/entrypoint.sh
 
 ENTRYPOINT ["/app/docker/entrypoint.sh"]
 CMD ["synth"]

@@ -14,5 +14,5 @@ if [ "$1" = "build" ] || ! docker image inspect "$IMAGE" >/dev/null 2>&1; then
   docker build -t "$IMAGE" .
   [ "$1" = "build" ] && exit 0
 fi
-mkdir -p input output
-docker run --rm -v "$PWD/input:/data/input:ro" -v "$PWD/output:/data/output" "$IMAGE" "$@"
+mkdir -p input output weights
+docker run --rm -v "$PWD/input:/data/input:ro" -v "$PWD/output:/data/output" -v "$PWD/weights:/data/weights" "$IMAGE" "$@"
